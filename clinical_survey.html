@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Clinical Survey — ActionCensus</title>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:       #0a0a0a;
+      --surface:  #111111;
+      --border:   #1f1f1f;
+      --accent:   #00ff88;
+      --accent2:  #00cc6a;
+      --text:     #f0f0f0;
+      --muted:    rgba(255,255,255,0.38);
+      --error:    #ff4d6d;
+      --font:     'JetBrains Mono', monospace;
+    }
+
+    html, body {
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .shell {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 80px;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 540px;
+    }
+
+    /* ── Header ── */
+    .header {
+      margin-bottom: 40px;
+    }
+    .header .tag {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 10px;
+    }
+    .header h1 {
+      font-size: 1.55rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      color: #fff;
+    }
+    .header p {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Section dividers ── */
+    .section-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin: 36px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ── Unit toggle ── */
+    .unit-toggle {
+      display: inline-flex;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 28px;
+    }
+    .unit-toggle button {
+      font-family: var(--font);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 8px 18px;
+      background: transparent;
+      color: var(--muted);
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .unit-toggle button.active {
+      background: var(--accent);
+      color: #000;
+    }
+
+    /* ── Field groups ── */
+    .field {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 7px;
+      text-transform: uppercase;
+    }
+    label span.req {
+      color: var(--accent);
+      margin-left: 3px;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      width: 100%;
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 400;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      appearance: none;
+      -webkit-appearance: none;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    select:focus {
+      border-color: var(--accent);
+    }
+    input[type="text"].error,
+    input[type="number"].error,
+    select.error {
+      border-color: var(--error);
+    }
+    /* Remove number input spinners */
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    select option { background: #1a1a1a; }
+
+    /* Height imperial: two side-by-side inputs */
+    .height-imperial {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .height-imperial .sub-label {
+      font-size: 0.65rem;
+      color: var(--muted);
+      margin-top: 5px;
+      text-align: center;
+    }
+
+    /* ── Radio button rows ── */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .radio-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .radio-row:hover { border-color: rgba(0,255,136,0.3); }
+    .radio-row input[type="radio"] { display: none; }
+    .radio-dot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      flex-shrink: 0;
+      transition: border-color 0.15s, background 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .radio-dot::after {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: transparent;
+      transition: background 0.15s;
+    }
+    .radio-row.selected {
+      border-color: var(--accent);
+    }
+    .radio-row.selected .radio-dot {
+      border-color: var(--accent);
+    }
+    .radio-row.selected .radio-dot::after {
+      background: var(--accent);
+    }
+    .radio-row .radio-text {
+      font-size: 0.82rem;
+      color: var(--text);
+    }
+
+    /* ── Chip toggles (footwear / chair) ── */
+    .chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .chip {
+      font-family: var(--font);
+      font-size: 0.75rem;
+      font-weight: 500;
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .chip.selected {
+      border-color: var(--accent);
+      background: rgba(0,255,136,0.08);
+      color: var(--accent);
+    }
+
+    /* ── Conditional block ── */
+    #med-block {
+      overflow: hidden;
+      max-height: 0;
+      opacity: 0;
+      transition: max-height 0.3s ease, opacity 0.25s ease;
+    }
+    #med-block.visible {
+      max-height: 4000px;
+      opacity: 1;
+    }
+
+    /* ── Error message ── */
+    .field-error {
+      font-size: 0.68rem;
+      color: var(--error);
+      margin-top: 5px;
+      display: none;
+    }
+    .field-error.show { display: block; }
+
+    /* ── Submit button ── */
+    .submit-btn {
+      width: 100%;
+      margin-top: 36px;
+      font-family: var(--font);
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #000;
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+      padding: 16px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s;
+    }
+    .submit-btn:hover { background: var(--accent2); }
+    .submit-btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* ── Success screen ── */
+    #success-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 60vh;
+      gap: 20px;
+    }
+    .success-icon {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.6rem;
+    }
+    #success-screen h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    #success-screen p {
+      font-size: 0.8rem;
+      color: var(--muted);
+      max-width: 320px;
+      line-height: 1.6;
+    }
+    .pid-badge {
+      font-size: 0.7rem;
+      color: var(--accent);
+      background: rgba(0,255,136,0.08);
+      border: 1px solid rgba(0,255,136,0.2);
+      border-radius: 4px;
+      padding: 6px 12px;
+      word-break: break-all;
+    }
+
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ── Success screen ── -->
+  <div id="success-screen" class="card">
+    <div class="success-icon">✓</div>
+    <h2>Survey Saved</h2>
+    <p>Your clinical data has been linked to your movement recording. Thank you.</p>
+    <div class="pid-badge" id="success-pid"></div>
+  </div>
+
+  <!-- ── Main form ── -->
+  <div id="form-card" class="card">
+    <div class="header">
+      <div class="tag">ActionCensus · Clinical Survey</div>
+      <h1>Physical &amp; Clinical Profile</h1>
+      <p>Used to scale your movement data into physical units (m/s²). Kept confidential and linked only to your session ID.</p>
+    </div>
+
+    <!-- Unit toggle -->
+    <div class="unit-toggle" role="group" aria-label="Unit system">
+      <button id="btn-metric"   class="active" onclick="setUnits('metric')">Metric</button>
+      <button id="btn-imperial"            onclick="setUnits('imperial')">Imperial</button>
+    </div>
+
+    <form id="survey-form" novalidate>
+
+      <!-- ── Prolific ID ── -->
+      <div class="section-label">Your ID</div>
+      <div class="field">
+        <label>Prolific ID<span class="req">*</span></label>
+        <input type="text" id="prolific_id" placeholder="Paste your Prolific ID here" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
+        <div class="field-error" id="err-pid">Please enter your Prolific ID.</div>
+      </div>
+
+      <!-- ── Demographics ── -->
+      <div class="section-label">Demographics</div>
+
+      <!-- Sex -->
+      <div class="field">
+        <label>Sex at birth<span class="req">*</span></label>
+        <div class="radio-group" id="sex-group">
+          <label class="radio-row" onclick="selectRadio('sex_at_birth','M',this)">
+            <input type="radio" name="sex_at_birth" value="M">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Male</span>
+          </label>
+          <label class="radio-row" onclick="selectRadio('sex_at_birth','F',this)">
+            <input type="radio" name="sex_at_birth" value="F">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Female</span>
+          </label>
+        </div>
+        <div class="field-error" id="err-sex">Please select one.</div>
+      </div>
+
+      <!-- Age -->
+      <div class="field">
+        <label>Age (years)<span class="req">*</span></label>
+        <input type="number" id="age" min="5" max="110" step="1" placeholder="e.g. 42">
+        <div class="field-error" id="err-age">Enter a valid age (5–110).</div>
+      </div>
+
+      <!-- ── Anthropometrics ── -->
+      <div class="section-label">Anthropometrics</div>
+
+      <!-- Height -->
+      <div class="field" id="height-field">
+        <label>Height<span class="req">*</span></label>
+
+        <!-- Metric -->
+        <div id="height-metric">
+          <input type="number" id="height_cm" min="50" max="250" step="0.1" placeholder="cm">
+        </div>
+
+        <!-- Imperial -->
+        <div id="height-imperial" style="display:none">
+          <div class="height-imperial">
+            <div>
+              <input type="number" id="height_ft" min="1" max="8" step="1" placeholder="ft">
+              <div class="sub-label">feet</div>
+            </div>
+            <div>
+              <input type="number" id="height_in" min="0" max="11.9" step="0.1" placeholder="in">
+              <div class="sub-label">inches</div>
+            </div>
+          </div>
+        </div>
+        <div class="field-error" id="err-height">Enter a valid height.</div>
+      </div>
+
+      <!-- Weight -->
+      <div class="field">
+        <label>Weight<span class="req">*</span></label>
+
+        <div id="weight-metric">
+          <input type="number" id="weight_kg" min="20" max="300" step="0.1" placeholder="kg">
+        </div>
+
+        <div id="weight-imperial" style="display:none">
+          <input type="number" id="weight_lbs" min="44" max="660" step="0.1" placeholder="lbs">
+        </div>
+        <div class="field-error" id="err-weight">Enter a valid weight.</div>
+      </div>
+
+      <!-- ── Clinical ── -->
+      <div class="section-label">Clinical Context</div>
+
+      <!-- Status -->
+      <div class="field">
+        <label>Clinical status<span class="req">*</span></label>
+        <div class="radio-group" id="status-group">
+          <label class="radio-row" onclick="selectRadio('clinical_status','healthy_baseline',this)">
+            <input type="radio" name="clinical_status" value="healthy_baseline">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Healthy baseline</span>
+          </label>
+          <label class="radio-row" onclick="selectRadio('clinical_status','parkinsons',this)">
+            <input type="radio" name="clinical_status" value="parkinsons">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Parkinson's disease</span>
+          </label>
+          <label class="radio-row" onclick="selectRadio('clinical_status','ms',this)">
+            <input type="radio" name="clinical_status" value="ms">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Multiple sclerosis</span>
+          </label>
+          <label class="radio-row" onclick="selectRadio('clinical_status','essential_tremor',this)">
+            <input type="radio" name="clinical_status" value="essential_tremor">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Essential tremor</span>
+          </label>
+          <label class="radio-row" onclick="selectRadio('clinical_status','other',this)">
+            <input type="radio" name="clinical_status" value="other">
+            <div class="radio-dot"></div>
+            <span class="radio-text">Other</span>
+          </label>
+        </div>
+        <div id="other-status-block" style="margin-top:10px;display:none;">
+          <input type="text" id="clinical_status_other" placeholder="Describe your condition…" autocorrect="off" spellcheck="false">
+          <div class="field-error" id="err-status-other">Please describe your condition.</div>
+        </div>
+        <div class="field-error" id="err-status">Please select one.</div>
+      </div>
+
+      <!-- Clinical detail block — shown for all non-healthy statuses -->
+      <div id="med-block">
+
+        <!-- Diagnosis -->
+        <div class="section-label">Diagnosis</div>
+
+        <div class="field">
+          <label>Year of diagnosis<span class="req">*</span></label>
+          <input type="number" id="diagnosis_year" min="1950" max="2026" step="1" placeholder="e.g. 2019">
+          <div class="field-error" id="err-diag-year">Enter a valid year (1950–2026).</div>
+        </div>
+
+        <div class="field">
+          <label>Was this diagnosed by a doctor?<span class="req">*</span></label>
+          <div class="radio-group">
+            <label class="radio-row" onclick="selectRadio('diagnosis_confirmed','yes_doctor',this)">
+              <input type="radio" name="diagnosis_confirmed" value="yes_doctor">
+              <div class="radio-dot"></div>
+              <span class="radio-text">Yes — formal clinical diagnosis</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('diagnosis_confirmed','awaiting',this)">
+              <input type="radio" name="diagnosis_confirmed" value="awaiting">
+              <div class="radio-dot"></div>
+              <span class="radio-text">Awaiting formal diagnosis</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('diagnosis_confirmed','self',this)">
+              <input type="radio" name="diagnosis_confirmed" value="self">
+              <div class="radio-dot"></div>
+              <span class="radio-text">Self-identified / not formally diagnosed</span>
+            </label>
+          </div>
+          <div class="field-error" id="err-diag-confirmed">Please select one.</div>
+        </div>
+
+        <div class="field">
+          <label>Severity<span class="req">*</span></label>
+          <div class="radio-group">
+            <label class="radio-row" onclick="selectRadio('severity','mild',this)">
+              <input type="radio" name="severity" value="mild">
+              <div class="radio-dot"></div>
+              <span class="radio-text">Mild — noticeable but does not significantly limit daily activity</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('severity','moderate',this)">
+              <input type="radio" name="severity" value="moderate">
+              <div class="radio-dot"></div>
+              <span class="radio-text">Moderate — affects some daily activities</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('severity','severe',this)">
+              <input type="radio" name="severity" value="severe">
+              <div class="radio-dot"></div>
+              <span class="radio-text">Severe — significantly limits daily function</span>
+            </label>
+          </div>
+          <div class="field-error" id="err-severity">Please select one.</div>
+        </div>
+
+        <!-- Symptoms -->
+        <div class="section-label">Symptoms</div>
+
+        <div class="field">
+          <label>Primary symptoms <span style="color:var(--muted);font-size:0.65rem;">(select all that apply)</span></label>
+          <div class="chip-group" id="symptoms-group">
+            <button type="button" class="chip multi" data-val="tremor"      onclick="toggleChip('symptoms',this)">Tremor</button>
+            <button type="button" class="chip multi" data-val="rigidity"    onclick="toggleChip('symptoms',this)">Rigidity / stiffness</button>
+            <button type="button" class="chip multi" data-val="bradykinesia" onclick="toggleChip('symptoms',this)">Slowness of movement</button>
+            <button type="button" class="chip multi" data-val="balance"     onclick="toggleChip('symptoms',this)">Balance / posture</button>
+            <button type="button" class="chip multi" data-val="fatigue"     onclick="toggleChip('symptoms',this)">Fatigue</button>
+            <button type="button" class="chip multi" data-val="cognitive"   onclick="toggleChip('symptoms',this)">Cognitive / memory</button>
+            <button type="button" class="chip multi" data-val="pain"        onclick="toggleChip('symptoms',this)">Pain</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>Symptom side</label>
+          <div class="chip-group" id="side-group">
+            <button type="button" class="chip" data-val="left"      onclick="selectChip('symptom_side',this)">Left</button>
+            <button type="button" class="chip" data-val="right"     onclick="selectChip('symptom_side',this)">Right</button>
+            <button type="button" class="chip" data-val="bilateral" onclick="selectChip('symptom_side',this)">Both sides</button>
+            <button type="button" class="chip" data-val="na"        onclick="selectChip('symptom_side',this)">Not applicable</button>
+          </div>
+        </div>
+
+        <!-- Functional status -->
+        <div class="section-label">Functional Status</div>
+
+        <div class="field">
+          <label>Falls in the past 6 months<span class="req">*</span></label>
+          <div class="radio-group">
+            <label class="radio-row" onclick="selectRadio('falls_6mo','none',this)">
+              <input type="radio" name="falls_6mo" value="none">
+              <div class="radio-dot"></div>
+              <span class="radio-text">None</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('falls_6mo','1-2',this)">
+              <input type="radio" name="falls_6mo" value="1-2">
+              <div class="radio-dot"></div>
+              <span class="radio-text">1–2 falls</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('falls_6mo','3-5',this)">
+              <input type="radio" name="falls_6mo" value="3-5">
+              <div class="radio-dot"></div>
+              <span class="radio-text">3–5 falls</span>
+            </label>
+            <label class="radio-row" onclick="selectRadio('falls_6mo','6+',this)">
+              <input type="radio" name="falls_6mo" value="6+">
+              <div class="radio-dot"></div>
+              <span class="radio-text">6 or more falls</span>
+            </label>
+          </div>
+          <div class="field-error" id="err-falls">Please select one.</div>
+        </div>
+
+        <div class="field">
+          <label>Walking aid</label>
+          <div class="chip-group" id="walking-aid-group">
+            <button type="button" class="chip" data-val="none"        onclick="selectChip('walking_aid',this)">None</button>
+            <button type="button" class="chip" data-val="cane"        onclick="selectChip('walking_aid',this)">Cane</button>
+            <button type="button" class="chip" data-val="walker"      onclick="selectChip('walking_aid',this)">Walker / rollator</button>
+            <button type="button" class="chip" data-val="wheelchair"  onclick="selectChip('walking_aid',this)">Wheelchair</button>
+          </div>
+        </div>
+
+        <!-- Medication -->
+        <div class="section-label">Medication</div>
+
+        <div class="field">
+          <label>Medications for this condition</label>
+          <input type="text" id="medication_names" placeholder="e.g. Levodopa, Carbidopa, Amantadine" autocorrect="off" spellcheck="false">
+          <div style="font-size:0.65rem;color:var(--muted);margin-top:5px;">Separate multiple medications with commas. Leave blank if none.</div>
+        </div>
+
+        <div class="field">
+          <label>Last dose taken<span class="req">*</span></label>
+          <select id="medication_timing">
+            <option value="" disabled selected>Select…</option>
+            <option value="no_medication">Not taking any medication for this condition</option>
+            <option value="0-2hr_on">0–2 hrs ago (ON / peak effect)</option>
+            <option value="2-5hr_wearing_off">2–5 hrs ago (wearing off)</option>
+            <option value="5hr+_off">5+ hrs ago (OFF state)</option>
+          </select>
+          <div class="field-error" id="err-med">Please select one.</div>
+        </div>
+
+      </div><!-- /med-block -->
+
+      <!-- ── Setup flags ── -->
+      <div class="section-label">Setup</div>
+
+      <div class="field">
+        <label>Footwear<span class="req">*</span></label>
+        <div class="chip-group" id="footwear-group">
+          <button type="button" class="chip" data-val="shoes"    onclick="selectChip('footwear',this)">Shoes</button>
+          <button type="button" class="chip" data-val="socks"    onclick="selectChip('footwear',this)">Socks only</button>
+          <button type="button" class="chip" data-val="barefoot" onclick="selectChip('footwear',this)">Barefoot</button>
+        </div>
+        <div class="field-error" id="err-footwear">Please select one.</div>
+      </div>
+
+      <div class="field">
+        <label>Chair type<span class="req">*</span></label>
+        <div class="chip-group" id="chair-group">
+          <button type="button" class="chip" data-val="no_arms" onclick="selectChip('chair_type',this)">No armrests</button>
+          <button type="button" class="chip" data-val="arms"    onclick="selectChip('chair_type',this)">With armrests</button>
+        </div>
+        <div class="field-error" id="err-chair">Please select one.</div>
+      </div>
+
+      <div class="field">
+        <label>Clothing fit<span class="req">*</span></label>
+        <div class="chip-group" id="clothing-group">
+          <button type="button" class="chip" data-val="fitted"  onclick="selectChip('clothing_fit',this)">Fitted</button>
+          <button type="button" class="chip" data-val="baggy"   onclick="selectChip('clothing_fit',this)">Baggy / loose</button>
+        </div>
+        <div class="field-error" id="err-clothing">Please select one.</div>
+      </div>
+
+      <button type="submit" class="submit-btn" id="submit-btn">Save Clinical Data →</button>
+    </form>
+  </div><!-- /form-card -->
+
+</div><!-- /shell -->
+
+<script>
+// ─────────────────────────────────────────────────────────────
+// Firebase init
+// ─────────────────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey:            "AIzaSyCngFl00Lif212z8wi75hBI6ZRjJj0mhFI",
+  authDomain:        "standing-and-sitting.firebaseapp.com",
+  projectId:         "standing-and-sitting",
+  storageBucket:     "standing-and-sitting.firebasestorage.app",
+  messagingSenderId: "205817616372",
+  appId:             "1:205817616372:web:d9fb5e38409ff673788ba1",
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ─────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────
+let unitSystem  = 'metric';
+const selections = {
+  sex_at_birth: null, clinical_status: null,
+  diagnosis_confirmed: null, severity: null,
+  falls_6mo: null,
+  footwear: null, chair_type: null, clothing_fit: null,
+  symptom_side: null, walking_aid: null,
+};
+const multiSelections = { symptoms: new Set() };
+
+// ─────────────────────────────────────────────────────────────
+// Unit toggle
+// ─────────────────────────────────────────────────────────────
+function setUnits(sys) {
+  unitSystem = sys;
+  document.getElementById('btn-metric').classList.toggle('active',   sys === 'metric');
+  document.getElementById('btn-imperial').classList.toggle('active', sys === 'imperial');
+
+  document.getElementById('height-metric').style.display   = sys === 'metric'   ? '' : 'none';
+  document.getElementById('height-imperial').style.display = sys === 'imperial' ? '' : 'none';
+  document.getElementById('weight-metric').style.display   = sys === 'metric'   ? '' : 'none';
+  document.getElementById('weight-imperial').style.display = sys === 'imperial' ? '' : 'none';
+}
+
+// ─────────────────────────────────────────────────────────────
+// Radio rows
+// ─────────────────────────────────────────────────────────────
+function selectRadio(name, value, rowEl) {
+  selections[name] = value;
+  const group = rowEl.closest('.radio-group') || rowEl.parentNode;
+  group.querySelectorAll('.radio-row').forEach(r => r.classList.remove('selected'));
+  rowEl.classList.add('selected');
+
+  if (name === 'clinical_status') {
+    const medBlock   = document.getElementById('med-block');
+    const otherBlock = document.getElementById('other-status-block');
+    medBlock.classList.toggle('visible', value !== 'healthy_baseline');
+    otherBlock.style.display = value === 'other' ? '' : 'none';
+    if (value === 'healthy_baseline') {
+      document.getElementById('medication_timing').value = '';
+    }
+    if (value !== 'other') {
+      document.getElementById('clinical_status_other').value = '';
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Chip toggles — single-select and multi-select
+// ─────────────────────────────────────────────────────────────
+function selectChip(name, chipEl) {
+  selections[name] = chipEl.dataset.val;
+  const group = chipEl.closest('.chip-group');
+  group.querySelectorAll('.chip').forEach(c => c.classList.remove('selected'));
+  chipEl.classList.add('selected');
+}
+
+function toggleChip(name, chipEl) {
+  const val = chipEl.dataset.val;
+  if (multiSelections[name].has(val)) {
+    multiSelections[name].delete(val);
+    chipEl.classList.remove('selected');
+  } else {
+    multiSelections[name].add(val);
+    chipEl.classList.add('selected');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// Height / weight resolution → canonical metric values
+// ─────────────────────────────────────────────────────────────
+function resolveHeight() {
+  if (unitSystem === 'metric') {
+    const v = parseFloat(document.getElementById('height_cm').value);
+    return (isNaN(v) || v < 50 || v > 250) ? null : +v.toFixed(1);
+  }
+  const ft = parseFloat(document.getElementById('height_ft').value);
+  const iN = parseFloat(document.getElementById('height_in').value || '0');
+  if (isNaN(ft) || ft < 1 || ft > 8 || iN < 0 || iN >= 12) return null;
+  return +((ft * 30.48) + (iN * 2.54)).toFixed(1);  // → cm
+}
+
+function resolveWeight() {
+  if (unitSystem === 'metric') {
+    const v = parseFloat(document.getElementById('weight_kg').value);
+    return (isNaN(v) || v < 20 || v > 300) ? null : +v.toFixed(1);
+  }
+  const lbs = parseFloat(document.getElementById('weight_lbs').value);
+  return (isNaN(lbs) || lbs < 44 || lbs > 660) ? null : +(lbs * 0.45359237).toFixed(1);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Validation
+// ─────────────────────────────────────────────────────────────
+function showErr(id, show) {
+  document.getElementById(id).classList.toggle('show', show);
+}
+function markInput(id, isErr) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('error', isErr);
+}
+
+function validate() {
+  let ok = true;
+
+  // Prolific ID
+  const pidVal = document.getElementById('prolific_id').value.trim();
+  const noPid  = pidVal.length < 4;
+  showErr('err-pid', noPid); markInput('prolific_id', noPid);
+  if (noPid) ok = false;
+
+  // Sex
+  const noSex = !selections.sex_at_birth;
+  showErr('err-sex', noSex); if (noSex) ok = false;
+
+  // Age
+  const age = parseInt(document.getElementById('age').value, 10);
+  const badAge = isNaN(age) || age < 5 || age > 110;
+  showErr('err-age', badAge); markInput('age', badAge);
+  if (badAge) ok = false;
+
+  // Height
+  const hCm = resolveHeight();
+  showErr('err-height', hCm === null);
+  markInput('height_cm', hCm === null && unitSystem === 'metric');
+  markInput('height_ft', hCm === null && unitSystem === 'imperial');
+  if (hCm === null) ok = false;
+
+  // Weight
+  const wKg = resolveWeight();
+  showErr('err-weight', wKg === null);
+  markInput('weight_kg',  wKg === null && unitSystem === 'metric');
+  markInput('weight_lbs', wKg === null && unitSystem === 'imperial');
+  if (wKg === null) ok = false;
+
+  // Clinical status
+  const noStatus = !selections.clinical_status;
+  showErr('err-status', noStatus); if (noStatus) ok = false;
+
+  // Other — require text if selected
+  if (selections.clinical_status === 'other') {
+    const otherVal = document.getElementById('clinical_status_other').value.trim();
+    const badOther = otherVal.length < 2;
+    showErr('err-status-other', badOther);
+    markInput('clinical_status_other', badOther);
+    if (badOther) ok = false;
+  }
+
+  // Clinical detail fields (only if non-healthy)
+  if (selections.clinical_status && selections.clinical_status !== 'healthy_baseline') {
+    // Diagnosis year
+    const dy = parseInt(document.getElementById('diagnosis_year').value, 10);
+    const badDy = isNaN(dy) || dy < 1950 || dy > 2026;
+    showErr('err-diag-year', badDy); markInput('diagnosis_year', badDy);
+    if (badDy) ok = false;
+
+    // Diagnosed by doctor
+    const noDc = !selections.diagnosis_confirmed;
+    showErr('err-diag-confirmed', noDc); if (noDc) ok = false;
+
+    // Severity
+    const noSev = !selections.severity;
+    showErr('err-severity', noSev); if (noSev) ok = false;
+
+    // Falls
+    const noFalls = !selections.falls_6mo;
+    showErr('err-falls', noFalls); if (noFalls) ok = false;
+
+    // Medication timing
+    const med = document.getElementById('medication_timing').value;
+    const badMed = !med;
+    showErr('err-med', badMed); markInput('medication_timing', badMed);
+    if (badMed) ok = false;
+  }
+
+  // Footwear
+  const noFoot = !selections.footwear;
+  showErr('err-footwear', noFoot); if (noFoot) ok = false;
+
+  // Chair
+  const noChair = !selections.chair_type;
+  showErr('err-chair', noChair); if (noChair) ok = false;
+
+  // Clothing
+  const noClothing = !selections.clothing_fit;
+  showErr('err-clothing', noClothing); if (noClothing) ok = false;
+
+  return ok;
+}
+
+// ─────────────────────────────────────────────────────────────
+// Submit
+// ─────────────────────────────────────────────────────────────
+document.getElementById('survey-form').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!validate()) return;
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled    = true;
+  btn.textContent = 'Saving…';
+
+  const pid       = document.getElementById('prolific_id').value.trim();
+  const age       = parseInt(document.getElementById('age').value, 10);
+  const height_cm = resolveHeight();
+  const weight_kg = resolveWeight();
+  const isHealthy      = selections.clinical_status === 'healthy_baseline';
+  const clinicalStatus = selections.clinical_status === 'other'
+    ? ('other: ' + document.getElementById('clinical_status_other').value.trim())
+    : selections.clinical_status;
+
+  const payload = {
+    pid,
+    height_cm,
+    weight_kg,
+    age,
+    sex_at_birth:    selections.sex_at_birth,
+    clinical_status: clinicalStatus,
+    setup_flags: {
+      footwear:     selections.footwear,
+      chair_type:   selections.chair_type,
+      clothing_fit: selections.clothing_fit,
+    },
+    clinical_survey_complete: true,
+    submitted_at: firebase.firestore.FieldValue.serverTimestamp(),
+  };
+
+  if (!isHealthy) {
+    payload.diagnosis_year      = parseInt(document.getElementById('diagnosis_year').value, 10);
+    payload.diagnosis_confirmed = selections.diagnosis_confirmed;
+    payload.severity            = selections.severity;
+    payload.symptoms            = Array.from(multiSelections.symptoms);
+    payload.symptom_side        = selections.symptom_side || 'not_specified';
+    payload.falls_6mo           = selections.falls_6mo;
+    payload.walking_aid         = selections.walking_aid || 'not_specified';
+    payload.medication_names    = document.getElementById('medication_names').value.trim() || 'none';
+    payload.medication_timing   = document.getElementById('medication_timing').value;
+  }
+
+  const save = (attempt = 1) =>
+    db.collection('participants').doc(pid)
+      .set(payload, { merge: true })
+      .then(() => {
+        document.getElementById('form-card').style.display     = 'none';
+        const ss = document.getElementById('success-screen');
+        ss.style.display = 'flex';
+        document.getElementById('success-pid').textContent = `pid: ${pid}`;
+      })
+      .catch(err => {
+        if (attempt < 3) {
+          setTimeout(() => save(attempt + 1), 1000 * attempt);
+        } else {
+          btn.disabled    = false;
+          btn.textContent = 'Save Clinical Data →';
+          alert('Save failed after 3 attempts. Check your connection and try again.\n\n' + err.message);
+        }
+      });
+
+  save();
+});
+</script>
+</body>
+</html>
